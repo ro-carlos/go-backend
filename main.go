@@ -7,11 +7,23 @@ import (
 	"log"
 
 	"github.com/buaazp/fasthttprouter"
-	whois "github.com/undiabler/golang-whois"
 	"github.com/valyala/fasthttp"
+	"github.com/xellio/whois"
 
 	_ "github.com/lib/pq"
 )
+
+type SSLEndpointResponse struct {
+	IPAddress string `json:"ipAddress"`
+	Grade     string `json:"grade"`
+}
+
+type SSLResponse struct {
+	Status    string                `json:"status"`
+	Host      string                `json:"host"`
+	Port      string                `json:"port"`
+	Endpoints []SSLEndpointResponse `json:"endpoints"`
+}
 
 type Server struct {
 	Address  string `json:"address"`
@@ -20,11 +32,13 @@ type Server struct {
 	Owner    string `json:"owner"`
 }
 
+// PreviousSSLGrade and ServersChanged getCalculated in response
 type Domain struct {
+	Address          string   `json:"address"`
 	IsDown           bool     `json:"is_down"`
 	Logo             string   `json:"logo"`
 	PreviousSSLGrade string   `json:"previous_ssl_grade"`
-	Server           []Server `json:"servers"`
+	Servers          []Server `json:"servers"`
 	ServersChanged   bool     `json:"servers_changed"`
 	SSLGrade         string   `json:"ssl_grade"`
 	Title            string   `json:"title"`
@@ -37,7 +51,7 @@ func IndexRoute(ctx *fasthttp.RequestCtx) {
 func DomainRoute(ctx *fasthttp.RequestCtx) {
 	domain := ctx.UserValue("domain").(string)
 
-	response, err := whoIsRequest(domain)
+	response, err := getDomainInfo(domain)
 
 	if err != nil {
 		fmt.Println("Error in DomainRoute :", err)
@@ -57,30 +71,78 @@ func DomainRoute(ctx *fasthttp.RequestCtx) {
 
 }
 
-// whoIsRequest for domain and servers
-func whoIsRequest(domain string) (Domain, error) {
+func getDomainInfo(domain string) (Domain, error) {
+	var domainResponse Domain
 
-	result, err := whois.GetWhois(domain)
+	domainResult, err := whois.QueryHost(domain)
 	if err != nil {
 		fmt.Println("Error in whois lookup :", err)
 	} else {
+		domainAddress := domainResult.Output["Domain Name"][0]
+		domainCountry := domainResult.Output["Registrant Country"][0]
+		domainOwner := domainResult.Output["Registrant Organization"][0]
+		// domainServers := domainResult.Output["Name Server"]
+		domainIsDown := domainResult.Output["status"][0]
+		domainServers, err := getServers(domain)
+		if err != nil {
+			log.Fatal("error getting servers ", err)
+		}
 
-		fmt.Println(result)
+		fmt.Println("Address: ", domainAddress)
+		fmt.Println("Country: ", domainCountry)
+		fmt.Println("Owner: ", domainOwner)
+		fmt.Println("Servers: ", domainServers)
+		fmt.Println("isDown: ", domainIsDown)
 
-		fmt.Println("Nameservers: %v \n", whois.ParseNameServers(result))
-		fmt.Println("Nameservers: %v \n")
+		domainResponse = Domain{IsDown: false, Servers: domainServers}
 
 	}
 
-	response := Domain{IsDown: false}
-	getDomainInfo(domain)
+	return domainResponse, err
+}
 
-	return response, err
+// get serverSSLGrade ervers, SSLGradeMin, error
+func getServers(domain string) ([]Server, error) {
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
+	req.SetRequestURI("https://api.ssllabs.com/api/v3/analyze?host=" + domain)
+
+	fasthttp.Do(req, resp)
+
+	bodyBytes := resp.Body()
+
+	data := SSLResponse{}
+	json.Unmarshal(bodyBytes, &data)
+
+	servers := []Server{}
+
+	for i := 0; i < len(data.Endpoints); i++ {
+		server := Server{Address: data.Endpoints[i].IPAddress, SSLGrade: data.Endpoints[i].Grade}
+
+		serverResult, err := whois.QueryHost(domain)
+		if err != nil {
+			fmt.Println("Error in server whois lookup :", err)
+			return nil, err
+		}
+		if len(serverResult.Output["Registrant Country"]) > 0 {
+			server.Country = serverResult.Output["Registrant Country"][0]
+		}
+		if len(serverResult.Output["Registrant Organization"]) > 0 {
+			server.Owner = serverResult.Output["Registrant Organization"][0]
+		}
+
+		servers = append(servers, server)
+	}
+
+	return servers, nil
 }
 
 // Update domain, servers, origin, connection
-func getDomainInfo(domain string) {
-	ip := "3.85.23.204:26257"
+func queryDBInfo(domain string) {
+	ip := "carlos@54.86.13.212:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 
 	if err != nil {
@@ -88,19 +150,19 @@ func getDomainInfo(domain string) {
 	}
 
 	// Print out the Servers.
-	rows, err := db.Query("SELECT Id, Address FROM DB.server")
+	rows, err := db.Query("SELECT Address, LastUpdate FROM DB.server")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer rows.Close()
-	fmt.Println("Initial Servers:")
+	fmt.Println("Initial Servers from DB:")
 	for rows.Next() {
-		var Id string
 		var Address string
-		if err := rows.Scan(&Id, &Address); err != nil {
+		var LastUpdate string
+		if err := rows.Scan(&Address, &LastUpdate); err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("%s %s\n", Id, Address)
+		fmt.Printf("%s %s\n", Address, LastUpdate)
 	}
 
 	defer db.Close()
