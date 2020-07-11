@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/buaazp/fasthttprouter"
 	"github.com/valyala/fasthttp"
 	"github.com/xellio/whois"
+
+	"regexp"
 
 	_ "github.com/lib/pq"
 )
@@ -79,29 +82,71 @@ func getDomainInfo(domain string) (Domain, error) {
 		fmt.Println("Error in whois lookup :", err)
 	} else {
 		domainAddress := domainResult.Output["Domain Name"][0]
-		domainCountry := domainResult.Output["Registrant Country"][0]
-		domainOwner := domainResult.Output["Registrant Organization"][0]
-		// domainServers := domainResult.Output["Name Server"]
-		domainIsDown := domainResult.Output["status"][0]
 		domainServers, err := getServers(domain)
 		if err != nil {
 			log.Fatal("error getting servers ", err)
 		}
 
-		fmt.Println("Address: ", domainAddress)
-		fmt.Println("Country: ", domainCountry)
-		fmt.Println("Owner: ", domainOwner)
-		fmt.Println("Servers: ", domainServers)
-		fmt.Println("isDown: ", domainIsDown)
+		domainTitle, domainLogo, err := getTitleLogo(domain)
+		if err != nil {
+			log.Fatal("error title and logo ", err)
+		}
 
-		domainResponse = Domain{IsDown: false, Servers: domainServers}
+		var domainIsDown bool
+		if domainResult.Output["status"][0] == "ACTIVE" {
+			domainIsDown = false
+		} else {
+			domainIsDown = true
+		}
+
+		domainResponse = Domain{Address: domainAddress, IsDown: domainIsDown, Logo: domainLogo,
+			Servers: domainServers, Title: domainTitle}
 
 	}
 
 	return domainResponse, err
 }
 
-// get serverSSLGrade ervers, SSLGradeMin, error
+// get title and logo from specific domain
+func getTitleLogo(domain string) (string, string, error) {
+	url := "http://" + domain
+	statusCode, body, err := fasthttp.Get(nil, url)
+
+	if err != nil {
+		log.Fatal("Error in getTitleLogo :", statusCode, err)
+		return "", "", err
+	}
+
+	formatedBody := string(body)
+
+	var title string
+	titleRegex := regexp.MustCompile(`<title.*?>(.*)</title>`)
+	submatchalltitle := titleRegex.FindAllStringSubmatch(formatedBody, -1)
+	if len(submatchalltitle) > 0 && len(submatchalltitle[0]) > 1 {
+		title = submatchalltitle[0][1]
+	}
+
+	var logo string
+	logoRegex := regexp.MustCompile(`<link rel="(.*)?icon"(.*?)>`)
+	submatchalllogo := logoRegex.FindAllStringSubmatch(formatedBody, -1)
+	if len(submatchalllogo) > 0 && len(submatchalllogo[0]) > 0 {
+
+		logoNameRegex := regexp.MustCompile(`("/.*?")|("http.*?")`)
+		submatchalllogoname := logoNameRegex.FindAllStringSubmatch(submatchalllogo[0][0], -1)
+
+		if len(submatchalllogoname) > 0 {
+			logo = submatchalllogoname[0][0]
+			logo = logo[1 : len(logo)-1]
+		}
+
+	}
+
+	// saveFile(formatedBody)
+
+	return title, logo, nil
+}
+
+// get serverSSLGrade servers, SSLGradeMin, error
 func getServers(domain string) ([]Server, error) {
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
@@ -142,7 +187,7 @@ func getServers(domain string) ([]Server, error) {
 
 // Update domain, servers, origin, connection
 func queryDBInfo(domain string) {
-	ip := "carlos@54.86.13.212:26257"
+	ip := "carlos@54.172.113.54:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 
 	if err != nil {
@@ -166,6 +211,19 @@ func queryDBInfo(domain string) {
 	}
 
 	defer db.Close()
+}
+
+func saveFile(d string) {
+	f, err := os.Create("example.html")
+	if err != nil {
+		fmt.Println(err)
+		f.Close()
+		return
+	} else {
+		f.WriteString(d)
+		f.Close()
+	}
+
 }
 
 func main() {
