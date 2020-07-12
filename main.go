@@ -36,7 +36,7 @@ type Server struct {
 	Owner    string `json:"owner"`
 }
 
-// PreviousSSLGrade and ServersChanged getCalculated in response
+// PreviousPSLGrade and ServersChanged getCalculated in response
 type Domain struct {
 	Address          string   `json:"address"`
 	IsDown           bool     `json:"is_down"`
@@ -48,8 +48,33 @@ type Domain struct {
 	Title            string   `json:"title"`
 }
 
+type Item struct {
+	Items []string `json:"items"`
+}
+
 func IndexRoute(ctx *fasthttp.RequestCtx) {
 	fmt.Fprint(ctx, "Welcome to go backend!\n")
+}
+
+func ConnectionRoute(ctx *fasthttp.RequestCtx) {
+	response, err := getConnectionInfo(ctx)
+
+	if err != nil {
+		fmt.Println("Error in ConnectionRoute :", err)
+		ctx.Response.SetStatusCode(500)
+
+	} else {
+		var (
+			strContentType     = []byte("Content-Type")
+			strApplicationJSON = []byte("application/json")
+		)
+
+		ctx.Response.Header.SetCanonical(strContentType, strApplicationJSON)
+		ctx.Response.SetStatusCode(200)
+		json.NewEncoder(ctx).Encode(response)
+
+	}
+
 }
 
 func DomainRoute(ctx *fasthttp.RequestCtx) {
@@ -71,6 +96,35 @@ func DomainRoute(ctx *fasthttp.RequestCtx) {
 
 	}
 
+}
+
+func getConnectionInfo(ctx *fasthttp.RequestCtx) (Item, error) {
+	ip := "carlos@34.201.170.228:26257"
+	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+
+	var itemResponse Item
+	var items []string
+
+	host := ctx.RemoteIP().String()
+
+	rows, err := db.Query("SELECT DomainAddress FROM DB.Connection WHERE OriginIP = $1", host)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+	fmt.Println("Initial balances:")
+	for rows.Next() {
+		var domainAddress string
+		if err := rows.Scan(&domainAddress); err != nil {
+			log.Fatal(err)
+		}
+		items = append(items, domainAddress)
+	}
+
+	itemResponse = Item{Items: items}
+
+	defer db.Close()
+	return itemResponse, err
 }
 
 func getDomainInfo(ctx *fasthttp.RequestCtx) (Domain, error) {
@@ -514,7 +568,8 @@ func saveFile(d string) {
 func main() {
 	router := fasthttprouter.New()
 	router.GET("/", IndexRoute)
-	router.GET("/info/:domain", DomainRoute)
+	router.GET("/domain/:domain", DomainRoute)
+	router.GET("/connections", ConnectionRoute)
 
 	log.Fatal(fasthttp.ListenAndServe(":8090", router.Handler))
 }
