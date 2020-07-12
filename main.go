@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/buaazp/fasthttprouter"
 	"github.com/valyala/fasthttp"
@@ -52,9 +53,7 @@ func IndexRoute(ctx *fasthttp.RequestCtx) {
 }
 
 func DomainRoute(ctx *fasthttp.RequestCtx) {
-	domain := ctx.UserValue("domain").(string)
-
-	response, err := getDomainInfo(domain)
+	response, err := getDomainInfo(ctx)
 
 	if err != nil {
 		fmt.Println("Error in DomainRoute :", err)
@@ -74,9 +73,12 @@ func DomainRoute(ctx *fasthttp.RequestCtx) {
 
 }
 
-func getDomainInfo(domain string) (Domain, error) {
+func getDomainInfo(ctx *fasthttp.RequestCtx) (Domain, error) {
 	var domainResponse Domain
 
+	host := string(ctx.Request.Host())
+
+	domain := ctx.UserValue("domain").(string)
 	domainResult, err := whois.QueryHost(domain)
 	if err != nil {
 		fmt.Println("Error in whois lookup :", err)
@@ -102,9 +104,75 @@ func getDomainInfo(domain string) (Domain, error) {
 		domainResponse = Domain{Address: domainAddress, IsDown: domainIsDown, Logo: domainLogo,
 			Servers: domainServers, Title: domainTitle}
 
+		exists, err := existsDomainDB(domainAddress)
+
+		if err != nil {
+			log.Fatal("error querying domain in DB", err)
+		}
+		if exists == true {
+			//Not supported yet
+		} else if exists == false {
+			insertDomainServersDB(domainResponse)
+		}
+
+		existsOrigin, errOrigin := existsOriginDB(host)
+		if errOrigin != nil {
+			log.Fatal("error querying origin in DB", errOrigin)
+		}
+		insertConnectionDB(existsOrigin, host, "Some metadata", domainAddress)
+
 	}
 
 	return domainResponse, err
+}
+
+func existsDomainDB(domainAddress string) (bool, error) {
+	ip := "carlos@34.201.170.228:26257"
+	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+	var address string
+
+	if err != nil {
+		log.Fatal("error connecting to the database: ", err)
+		fmt.Println("Domains: ", "false")
+
+		return true, err
+	}
+
+	row := db.QueryRow("SELECT Address FROM DB.Domain WHERE Address = $1", domainAddress)
+	defer db.Close()
+
+	switch err := row.Scan(&address); err {
+	case sql.ErrNoRows:
+		return false, nil
+	case nil:
+		return true, nil
+	default:
+		return true, err
+	}
+}
+
+func existsOriginDB(hostAddress string) (bool, error) {
+	ip := "carlos@34.201.170.228:26257"
+	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+	var Address string
+
+	if err != nil {
+		log.Fatal("error connecting to the database: ", err)
+		return false, err
+	}
+
+	row := db.QueryRow("SELECT Address FROM DB.Origin WHERE Address = $1", hostAddress)
+	defer db.Close()
+
+	switch err := row.Scan(&Address); err {
+	case sql.ErrNoRows:
+		return false, nil
+	case nil:
+		return true, nil
+	default:
+		return false, err
+	}
+
 }
 
 // get title and logo from specific domain
@@ -123,7 +191,7 @@ func getTitleLogo(domain string) (string, string, error) {
 	titleRegex := regexp.MustCompile(`<title.*?>(.*)</title>`)
 	submatchalltitle := titleRegex.FindAllStringSubmatch(formatedBody, -1)
 	if len(submatchalltitle) > 0 && len(submatchalltitle[0]) > 1 {
-		title = submatchalltitle[0][1]
+		title = utf8Decode(submatchalltitle[0][1])
 	}
 
 	var logo string
@@ -136,7 +204,7 @@ func getTitleLogo(domain string) (string, string, error) {
 
 		if len(submatchalllogoname) > 0 {
 			logo = submatchalllogoname[0][0]
-			logo = logo[1 : len(logo)-1]
+			logo = utf8Decode(logo[1 : len(logo)-1])
 		}
 
 	}
@@ -185,29 +253,101 @@ func getServers(domain string) ([]Server, error) {
 	return servers, nil
 }
 
-// Update domain, servers, origin, connection
-func queryDBInfo(domain string) {
-	ip := "carlos@54.172.113.54:26257"
+func utf8Decode(str string) string {
+	var result string
+	for i := range str {
+		result += string(str[i])
+	}
+	return result
+}
+
+func getScore(sslGrade string) int {
+	if sslGrade == "A+" {
+		return 95
+	} else if sslGrade == "A" {
+		return 85
+	} else if sslGrade == "A-" {
+		return 80
+	} else if sslGrade == "B" {
+		return 65
+	} else if sslGrade == "C" {
+		return 50
+	} else if sslGrade == "D" {
+		return 35
+	} else if sslGrade == "E" {
+		return 20
+	}
+	return 0
+}
+
+func calculateMinSSLGrade(servers []Server) string {
+	minSSLGrade := "A"
+	min := 100
+	for i := 0; i < len(servers); i++ {
+		server := servers[i]
+		curr := getScore(server.SSLGrade)
+
+		if curr < min {
+			min = curr
+			minSSLGrade = server.SSLGrade
+		}
+	}
+	return minSSLGrade
+}
+
+func insertDomainServersDB(domain Domain) {
+	ip := "carlos@34.201.170.228:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 
 	if err != nil {
 		log.Fatal("error connecting to the database: ", err)
 	}
 
-	// Print out the Servers.
-	rows, err := db.Query("SELECT Address, LastUpdate FROM DB.server")
-	if err != nil {
-		log.Fatal(err)
+	domain.PreviousSSLGrade = calculateMinSSLGrade(domain.Servers)
+	domain.SSLGrade = domain.PreviousSSLGrade
+	domain.ServersChanged = false
+
+	_, errInsDom := db.Exec(
+		"INSERT INTO DB.Domain (Address, IsDown, Logo, SSLGrade, Title, LastUpdate) VALUES ($1, $2, $3, $4, $5, $6)", domain.Address, domain.IsDown, domain.Logo, domain.SSLGrade, domain.Title, time.Now())
+
+	if errInsDom != nil {
+		log.Fatal(errInsDom)
 	}
-	defer rows.Close()
-	fmt.Println("Initial Servers from DB:")
-	for rows.Next() {
-		var Address string
-		var LastUpdate string
-		if err := rows.Scan(&Address, &LastUpdate); err != nil {
+
+	for i := 0; i < len(domain.Servers); i++ {
+		server := domain.Servers[i]
+		_, errInsSer := db.Exec(
+			"INSERT INTO DB.Server (Address, SSLGrade, Country, Owner, DomainAddress, LastUpdate) VALUES ($1, $2, $3, $4, $5, $6)", server.Address, server.SSLGrade, server.Country, server.Owner, domain.Address, time.Now())
+		if errInsSer != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("%s %s\n", Address, LastUpdate)
+	}
+	defer db.Close()
+}
+
+func insertConnectionDB(existsOrigin bool, host string, metaData string, domainAddress string) {
+	ip := "carlos@34.201.170.228:26257"
+	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+
+	if err != nil {
+		log.Fatal("error connecting to the database: ", err)
+	}
+
+	if existsOrigin == false {
+
+		_, errInsOrigin := db.Exec(
+			"INSERT INTO DB.Origin (Address, Metadata, LastUpdate) VALUES ($1, $2, $3)", host, metaData, time.Now())
+
+		if errInsOrigin != nil {
+			log.Fatal(errInsOrigin)
+		}
+	}
+
+	_, errInsConnection := db.Exec(
+		"INSERT INTO DB.Connection (OriginIP, DomainAddress, LastUpdate) VALUES ($1, $2, $3)", host, domainAddress, time.Now())
+
+	if errInsConnection != nil {
+		log.Fatal(errInsConnection)
 	}
 
 	defer db.Close()
