@@ -265,6 +265,7 @@ func validGrade(sslGrade string) bool {
 	return sslGrade == "A+" || sslGrade == "A" || sslGrade == "A-" || sslGrade == "B" || sslGrade == "C" || sslGrade == "D" || sslGrade == "E"
 }
 
+// https://github.com/ssllabs/research/wiki/SSL-Server-Rating-Guide
 func getScore(sslGrade string) int {
 	if sslGrade == "A+" {
 		return 95
