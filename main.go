@@ -98,7 +98,7 @@ func DomainRoute(ctx *fasthttp.RequestCtx) {
 }
 
 func getConnectionInfo(ctx *fasthttp.RequestCtx) (Item, error) {
-	ip := "carlos@34.201.170.228:26257"
+	ip := "carlos@35.170.250.98:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 
 	var itemResponse Item
@@ -179,7 +179,7 @@ func getDomainInfo(ctx *fasthttp.RequestCtx) (Domain, error) {
 }
 
 func existsDomainDB(domainAddress string) (bool, error) {
-	ip := "carlos@34.201.170.228:26257"
+	ip := "carlos@35.170.250.98:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 	var address string
 
@@ -202,7 +202,7 @@ func existsDomainDB(domainAddress string) (bool, error) {
 }
 
 func existsOriginDB(hostAddress string) (bool, error) {
-	ip := "carlos@34.201.170.228:26257"
+	ip := "carlos@35.170.250.98:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 	var Address string
 
@@ -226,7 +226,7 @@ func existsOriginDB(hostAddress string) (bool, error) {
 }
 
 func existsServerDB(address string) (bool, error) {
-	ip := "carlos@34.201.170.228:26257"
+	ip := "carlos@35.170.250.98:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 	var Address string
 
@@ -376,7 +376,7 @@ func calculateMinSSLGrade(servers []Server) string {
 }
 
 func insertDomainServersDB(domain *Domain) {
-	ip := "carlos@34.201.170.228:26257"
+	ip := "carlos@35.170.250.98:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 
 	if err != nil {
@@ -406,7 +406,7 @@ func insertDomainServersDB(domain *Domain) {
 }
 
 func updateDomainServersDB(domain *Domain) {
-	ip := "carlos@34.201.170.228:26257"
+	ip := "carlos@35.170.250.98:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 	serversChanged := false
 
@@ -464,7 +464,7 @@ func updateDomainServersDB(domain *Domain) {
 
 // return if server has changed
 func updateServerDB(server *Server) bool {
-	ip := "carlos@34.201.170.228:26257"
+	ip := "carlos@35.170.250.98:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 	var address string
 	var country string
@@ -504,7 +504,7 @@ func updateServerDB(server *Server) bool {
 }
 
 func insertServerDB(server Server, domain *Domain) {
-	ip := "carlos@34.201.170.228:26257"
+	ip := "carlos@35.170.250.98:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 
 	if err != nil {
@@ -521,7 +521,7 @@ func insertServerDB(server Server, domain *Domain) {
 }
 
 func insertConnectionDB(existsOrigin bool, host string, metaData string, domainAddress string) {
-	ip := "carlos@34.201.170.228:26257"
+	ip := "carlos@35.170.250.98:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 
 	if err != nil {
