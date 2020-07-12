@@ -261,6 +261,10 @@ func utf8Decode(str string) string {
 	return result
 }
 
+func validGrade(sslGrade string) bool {
+	return sslGrade == "A+" || sslGrade == "A" || sslGrade == "A-" || sslGrade == "B" || sslGrade == "C" || sslGrade == "D" || sslGrade == "E"
+}
+
 func getScore(sslGrade string) int {
 	if sslGrade == "A+" {
 		return 95
@@ -286,8 +290,9 @@ func calculateMinSSLGrade(servers []Server) string {
 	for i := 0; i < len(servers); i++ {
 		server := servers[i]
 		curr := getScore(server.SSLGrade)
+		valid := validGrade(server.SSLGrade)
 
-		if curr < min {
+		if valid && curr < min {
 			min = curr
 			minSSLGrade = server.SSLGrade
 		}
