@@ -76,7 +76,7 @@ func DomainRoute(ctx *fasthttp.RequestCtx) {
 func getDomainInfo(ctx *fasthttp.RequestCtx) (Domain, error) {
 	var domainResponse Domain
 
-	host := string(ctx.Request.Host())
+	host := ctx.RemoteIP().String()
 
 	domain := ctx.UserValue("domain").(string)
 	domainResult, err := whois.QueryHost(domain)
