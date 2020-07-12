@@ -112,7 +112,7 @@ func getDomainInfo(ctx *fasthttp.RequestCtx) (Domain, error) {
 		if exists == true {
 			//Not supported yet
 		} else if exists == false {
-			insertDomainServersDB(domainResponse)
+			insertDomainServersDB(&domainResponse)
 		}
 
 		existsOrigin, errOrigin := existsOriginDB(host)
@@ -295,7 +295,7 @@ func calculateMinSSLGrade(servers []Server) string {
 	return minSSLGrade
 }
 
-func insertDomainServersDB(domain Domain) {
+func insertDomainServersDB(domain *Domain) {
 	ip := "carlos@34.201.170.228:26257"
 	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
 
