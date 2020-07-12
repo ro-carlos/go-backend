@@ -562,10 +562,15 @@ func saveFile(d string) {
 }
 
 func main() {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "5000"
+	}
+
 	router := fasthttprouter.New()
 	router.GET("/", IndexRoute)
 	router.GET("/domain/:domain", DomainRoute)
 	router.GET("/connections", ConnectionRoute)
 
-	log.Fatal(fasthttp.ListenAndServe(":8090", router.Handler))
+	log.Fatal(fasthttp.ListenAndServe(":"+port, router.Handler))
 }
