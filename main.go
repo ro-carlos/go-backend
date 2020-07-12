@@ -51,12 +51,17 @@ type Item struct {
 	Items []string `json:"items"`
 }
 
+var IP = "carlos@35.170.250.98:26257"
+
 func IndexRoute(ctx *fasthttp.RequestCtx) {
 	fmt.Fprint(ctx, "Welcome to go backend!\n")
 }
 
 func ConnectionRoute(ctx *fasthttp.RequestCtx) {
 	response, err := getConnectionInfo(ctx)
+
+	ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
+	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
 
 	if err != nil {
 		fmt.Println("Error in ConnectionRoute :", err)
@@ -79,6 +84,9 @@ func ConnectionRoute(ctx *fasthttp.RequestCtx) {
 func DomainRoute(ctx *fasthttp.RequestCtx) {
 	response, err := getDomainInfo(ctx)
 
+	ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
+	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
+
 	if err != nil {
 		fmt.Println("Error in DomainRoute :", err)
 		ctx.Response.SetStatusCode(500)
@@ -98,8 +106,7 @@ func DomainRoute(ctx *fasthttp.RequestCtx) {
 }
 
 func getConnectionInfo(ctx *fasthttp.RequestCtx) (Item, error) {
-	ip := "carlos@35.170.250.98:26257"
-	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
 
 	var itemResponse Item
 	var items []string
@@ -179,8 +186,7 @@ func getDomainInfo(ctx *fasthttp.RequestCtx) (Domain, error) {
 }
 
 func existsDomainDB(domainAddress string) (bool, error) {
-	ip := "carlos@35.170.250.98:26257"
-	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
 	var address string
 
 	if err != nil {
@@ -202,8 +208,7 @@ func existsDomainDB(domainAddress string) (bool, error) {
 }
 
 func existsOriginDB(hostAddress string) (bool, error) {
-	ip := "carlos@35.170.250.98:26257"
-	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
 	var Address string
 
 	if err != nil {
@@ -226,8 +231,7 @@ func existsOriginDB(hostAddress string) (bool, error) {
 }
 
 func existsServerDB(address string) (bool, error) {
-	ip := "carlos@35.170.250.98:26257"
-	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
 	var Address string
 
 	if err != nil {
@@ -376,8 +380,7 @@ func calculateMinSSLGrade(servers []Server) string {
 }
 
 func insertDomainServersDB(domain *Domain) {
-	ip := "carlos@35.170.250.98:26257"
-	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
 
 	if err != nil {
 		fmt.Println("error connecting to DB", err)
@@ -406,8 +409,7 @@ func insertDomainServersDB(domain *Domain) {
 }
 
 func updateDomainServersDB(domain *Domain) {
-	ip := "carlos@35.170.250.98:26257"
-	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
 	serversChanged := false
 
 	if err != nil {
@@ -464,8 +466,7 @@ func updateDomainServersDB(domain *Domain) {
 
 // return if server has changed
 func updateServerDB(server *Server) bool {
-	ip := "carlos@35.170.250.98:26257"
-	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
 	var address string
 	var country string
 	var owner string
@@ -504,8 +505,7 @@ func updateServerDB(server *Server) bool {
 }
 
 func insertServerDB(server Server, domain *Domain) {
-	ip := "carlos@35.170.250.98:26257"
-	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
 
 	if err != nil {
 		fmt.Println("error connecting to DB", err)
@@ -521,8 +521,7 @@ func insertServerDB(server Server, domain *Domain) {
 }
 
 func insertConnectionDB(existsOrigin bool, host string, metaData string, domainAddress string) {
-	ip := "carlos@35.170.250.98:26257"
-	db, err := sql.Open("postgres", "postgresql://"+ip+"/DB?sslmode=disable")
+	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
 
 	if err != nil {
 		fmt.Println("error connecting to DB", err)
