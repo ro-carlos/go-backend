@@ -544,6 +544,9 @@ func updateDomainServersDB(domain *Domain) {
 			domain.PreviousSSLGrade = sslGrade
 		}
 
+		domain.SSLGrade = calculateMinSSLGrade(domain.Servers)
+		domain.ServersChanged = serversChanged
+
 		_, errupser := db.Exec(
 			"UPDATE DB.Domain SET IsDown = $1, Logo = $2, SSLGrade = $3, Title = $4, LastUpdate = $5 WHERE Address = $6", domain.IsDown, domain.Logo, domain.SSLGrade, domain.Title, time.Now(), domain.Address)
 
@@ -552,9 +555,6 @@ func updateDomainServersDB(domain *Domain) {
 		}
 
 	}
-
-	domain.SSLGrade = calculateMinSSLGrade(domain.Servers)
-	domain.ServersChanged = serversChanged
 
 	defer db.Close()
 }
