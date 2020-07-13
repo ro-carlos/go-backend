@@ -47,8 +47,13 @@ type Domain struct {
 	Title            string   `json:"title"`
 }
 
+type Connection struct {
+	Domain     Domain    `json:"domain"`
+	LastUpdate time.Time `json:"last_update"`
+}
+
 type Item struct {
-	Items []string `json:"items"`
+	Connections []Connection `json:"items"`
 }
 
 var IP = "carlos@35.170.250.98:26257"
@@ -109,24 +114,33 @@ func getConnectionInfo(ctx *fasthttp.RequestCtx) (Item, error) {
 	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
 
 	var itemResponse Item
-	var items []string
+	var connections []Connection
 
 	host := ctx.RemoteIP().String()
 
-	rows, err := db.Query("SELECT DomainAddress FROM DB.Connection WHERE OriginIP = $1", host)
+	rows, err := db.Query("SELECT DomainAddress, DB.Connection.LastUpdate, IsDown, Logo, SSLGrade, Title FROM DB.Domain, DB.Connection WHERE OriginIP = $1  and DomainAddress = Address", host)
 	if err != nil {
 		fmt.Println("error", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
+		var lastUpdate time.Time
+
 		var domainAddress string
-		if err := rows.Scan(&domainAddress); err != nil {
+		var isDown bool
+		var logo string
+		var sslGrade string
+		var title string
+
+		if err := rows.Scan(&domainAddress, &lastUpdate, &isDown, &logo, &sslGrade, &title); err != nil {
 			fmt.Println("error", err)
 		}
-		items = append(items, domainAddress)
+		domain := Domain{Address: domainAddress, IsDown: isDown, Logo: logo, SSLGrade: sslGrade, Title: title}
+		connection := Connection{LastUpdate: lastUpdate, Domain: domain}
+		connections = append(connections, connection)
 	}
 
-	itemResponse = Item{Items: items}
+	itemResponse = Item{Connections: connections}
 
 	defer db.Close()
 	return itemResponse, err
