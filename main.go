@@ -56,7 +56,8 @@ type Item struct {
 	Connections []Connection `json:"items"`
 }
 
-var IP = "carlos@35.170.250.98:26257"
+// var IP = "carlos@35.170.250.98:26257"
+var IP = "carlos@localhost:26257"
 
 func IndexRoute(ctx *fasthttp.RequestCtx) {
 	fmt.Fprint(ctx, "Welcome to go backend!\n")
