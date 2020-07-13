@@ -76,7 +76,7 @@ func ConnectionRoute(ctx *fasthttp.RequestCtx) {
 
 	if valid == false {
 		fmt.Println("Error in ConnectionRoute :")
-		backendResponse := BackendResponse{Valid: true, Content: nil}
+		backendResponse := BackendResponse{Valid: false, Content: nil}
 		ctx.Response.SetStatusCode(200)
 		json.NewEncoder(ctx).Encode(backendResponse)
 
@@ -103,7 +103,7 @@ func ConnectionFilterRoute(ctx *fasthttp.RequestCtx) {
 
 	if valid == false {
 		fmt.Println("Error in ConnectionRoute :")
-		backendResponse := BackendResponse{Valid: true, Content: nil}
+		backendResponse := BackendResponse{Valid: false, Content: nil}
 		ctx.Response.SetStatusCode(200)
 		json.NewEncoder(ctx).Encode(backendResponse)
 	} else {
