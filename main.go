@@ -86,6 +86,30 @@ func ConnectionRoute(ctx *fasthttp.RequestCtx) {
 
 }
 
+func ConnectionFilterRoute(ctx *fasthttp.RequestCtx) {
+	response, err := getConnectionFilterInfo(ctx)
+
+	ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
+	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
+
+	if err != nil {
+		fmt.Println("Error in ConnectionRoute :", err)
+		ctx.Response.SetStatusCode(500)
+
+	} else {
+		var (
+			strContentType     = []byte("Content-Type")
+			strApplicationJSON = []byte("application/json")
+		)
+
+		ctx.Response.Header.SetCanonical(strContentType, strApplicationJSON)
+		ctx.Response.SetStatusCode(200)
+		json.NewEncoder(ctx).Encode(response)
+
+	}
+
+}
+
 func DomainRoute(ctx *fasthttp.RequestCtx) {
 	response, err := getDomainInfo(ctx)
 
@@ -119,6 +143,43 @@ func getConnectionInfo(ctx *fasthttp.RequestCtx) (Item, error) {
 	host := ctx.RemoteIP().String()
 
 	rows, err := db.Query("SELECT DomainAddress, DB.Connection.LastUpdate, IsDown, Logo, SSLGrade, Title FROM DB.Domain, DB.Connection WHERE OriginIP = $1  and DomainAddress = Address", host)
+	if err != nil {
+		fmt.Println("error", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var lastUpdate time.Time
+
+		var domainAddress string
+		var isDown bool
+		var logo string
+		var sslGrade string
+		var title string
+
+		if err := rows.Scan(&domainAddress, &lastUpdate, &isDown, &logo, &sslGrade, &title); err != nil {
+			fmt.Println("error", err)
+		}
+		domain := Domain{Address: domainAddress, IsDown: isDown, Logo: logo, SSLGrade: sslGrade, Title: title}
+		connection := Connection{LastUpdate: lastUpdate, Domain: domain}
+		connections = append(connections, connection)
+	}
+
+	itemResponse = Item{Connections: connections}
+
+	defer db.Close()
+	return itemResponse, err
+}
+
+func getConnectionFilterInfo(ctx *fasthttp.RequestCtx) (Item, error) {
+	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
+
+	var itemResponse Item
+	var connections []Connection
+
+	host := ctx.RemoteIP().String()
+	domain := ctx.UserValue("domain").(string)
+
+	rows, err := db.Query("SELECT DomainAddress, DB.Connection.LastUpdate, IsDown, Logo, SSLGrade, Title FROM DB.Domain, DB.Connection WHERE OriginIP = $1 and DomainAddress = $2 and DomainAddress = Address", host, domain)
 	if err != nil {
 		fmt.Println("error", err)
 	}
@@ -584,6 +645,7 @@ func main() {
 	router.GET("/", IndexRoute)
 	router.GET("/domain/:domain", DomainRoute)
 	router.GET("/connections", ConnectionRoute)
+	router.GET("/connections/:domain", ConnectionFilterRoute)
 
 	log.Fatal(fasthttp.ListenAndServe(":"+port, router.Handler))
 }
