@@ -17,6 +17,11 @@ import (
 	_ "github.com/lib/pq"
 )
 
+type BackendResponse struct {
+	Valid   bool        `json:"valid"`
+	Content interface{} `json:"content"`
+}
+
 type SSLEndpointResponse struct {
 	IPAddress string `json:"ipAddress"`
 	Grade     string `json:"grade"`
@@ -64,14 +69,16 @@ func IndexRoute(ctx *fasthttp.RequestCtx) {
 }
 
 func ConnectionRoute(ctx *fasthttp.RequestCtx) {
-	response, err := getConnectionInfo(ctx)
+	connectionInfo, valid := getConnectionInfo(ctx)
 
 	ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
 	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
 
-	if err != nil {
-		fmt.Println("Error in ConnectionRoute :", err)
+	if valid == false {
+		fmt.Println("Error in ConnectionRoute :")
+		backendResponse := BackendResponse{Valid: true, Content: nil}
 		ctx.Response.SetStatusCode(500)
+		json.NewEncoder(ctx).Encode(backendResponse)
 
 	} else {
 		var (
@@ -79,63 +86,68 @@ func ConnectionRoute(ctx *fasthttp.RequestCtx) {
 			strApplicationJSON = []byte("application/json")
 		)
 
+		backendResponse := BackendResponse{Valid: true, Content: connectionInfo}
 		ctx.Response.Header.SetCanonical(strContentType, strApplicationJSON)
 		ctx.Response.SetStatusCode(200)
-		json.NewEncoder(ctx).Encode(response)
+		json.NewEncoder(ctx).Encode(backendResponse)
 
 	}
 
 }
 
 func ConnectionFilterRoute(ctx *fasthttp.RequestCtx) {
-	response, err := getConnectionFilterInfo(ctx)
+	connectionInfo, valid := getConnectionFilterInfo(ctx)
 
 	ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
 	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
 
-	if err != nil {
-		fmt.Println("Error in ConnectionRoute :", err)
+	if valid == false {
+		fmt.Println("Error in ConnectionRoute :")
+		backendResponse := BackendResponse{Valid: true, Content: nil}
 		ctx.Response.SetStatusCode(500)
-
+		json.NewEncoder(ctx).Encode(backendResponse)
 	} else {
 		var (
 			strContentType     = []byte("Content-Type")
 			strApplicationJSON = []byte("application/json")
 		)
 
+		backendResponse := BackendResponse{Valid: true, Content: connectionInfo}
 		ctx.Response.Header.SetCanonical(strContentType, strApplicationJSON)
 		ctx.Response.SetStatusCode(200)
-		json.NewEncoder(ctx).Encode(response)
+		json.NewEncoder(ctx).Encode(backendResponse)
 
 	}
 
 }
 
 func DomainRoute(ctx *fasthttp.RequestCtx) {
-	response, err := getDomainInfo(ctx)
+	domainResponse, valid := getDomainInfo(ctx)
 
 	ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
 	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
 
-	if err != nil {
-		fmt.Println("Error in DomainRoute :", err)
+	if valid == false {
+		fmt.Println("Error in DomainRoute :", valid)
+		backendResponse := BackendResponse{Valid: false, Content: nil}
 		ctx.Response.SetStatusCode(500)
-
+		json.NewEncoder(ctx).Encode(backendResponse)
 	} else {
 		var (
 			strContentType     = []byte("Content-Type")
 			strApplicationJSON = []byte("application/json")
 		)
+		backendResponse := BackendResponse{Valid: true, Content: domainResponse}
 
 		ctx.Response.Header.SetCanonical(strContentType, strApplicationJSON)
 		ctx.Response.SetStatusCode(200)
-		json.NewEncoder(ctx).Encode(response)
+		json.NewEncoder(ctx).Encode(backendResponse)
 
 	}
 
 }
 
-func getConnectionInfo(ctx *fasthttp.RequestCtx) (Item, error) {
+func getConnectionInfo(ctx *fasthttp.RequestCtx) (Item, bool) {
 	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
 
 	var itemResponse Item
@@ -146,6 +158,7 @@ func getConnectionInfo(ctx *fasthttp.RequestCtx) (Item, error) {
 	rows, err := db.Query("SELECT DomainAddress, DB.Connection.LastUpdate, IsDown, Logo, SSLGrade, Title FROM DB.Domain, DB.Connection WHERE OriginIP = $1  and DomainAddress = Address", host)
 	if err != nil {
 		fmt.Println("error", err)
+		return itemResponse, false
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -159,6 +172,7 @@ func getConnectionInfo(ctx *fasthttp.RequestCtx) (Item, error) {
 
 		if err := rows.Scan(&domainAddress, &lastUpdate, &isDown, &logo, &sslGrade, &title); err != nil {
 			fmt.Println("error", err)
+			return itemResponse, false
 		}
 		domain := Domain{Address: domainAddress, IsDown: isDown, Logo: logo, SSLGrade: sslGrade, Title: title}
 		connection := Connection{LastUpdate: lastUpdate, Domain: domain}
@@ -168,10 +182,10 @@ func getConnectionInfo(ctx *fasthttp.RequestCtx) (Item, error) {
 	itemResponse = Item{Connections: connections}
 
 	defer db.Close()
-	return itemResponse, err
+	return itemResponse, true
 }
 
-func getConnectionFilterInfo(ctx *fasthttp.RequestCtx) (Item, error) {
+func getConnectionFilterInfo(ctx *fasthttp.RequestCtx) (Item, bool) {
 	db, err := sql.Open("postgres", "postgresql://"+IP+"/DB?sslmode=disable")
 
 	var itemResponse Item
@@ -183,6 +197,7 @@ func getConnectionFilterInfo(ctx *fasthttp.RequestCtx) (Item, error) {
 	rows, err := db.Query("SELECT DomainAddress, DB.Connection.LastUpdate, IsDown, Logo, SSLGrade, Title FROM DB.Domain, DB.Connection WHERE OriginIP = $1 and DomainAddress = $2 and DomainAddress = Address", host, domain)
 	if err != nil {
 		fmt.Println("error", err)
+		return itemResponse, false
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -196,6 +211,7 @@ func getConnectionFilterInfo(ctx *fasthttp.RequestCtx) (Item, error) {
 
 		if err := rows.Scan(&domainAddress, &lastUpdate, &isDown, &logo, &sslGrade, &title); err != nil {
 			fmt.Println("error", err)
+			return itemResponse, false
 		}
 		domain := Domain{Address: domainAddress, IsDown: isDown, Logo: logo, SSLGrade: sslGrade, Title: title}
 		connection := Connection{LastUpdate: lastUpdate, Domain: domain}
@@ -205,10 +221,10 @@ func getConnectionFilterInfo(ctx *fasthttp.RequestCtx) (Item, error) {
 	itemResponse = Item{Connections: connections}
 
 	defer db.Close()
-	return itemResponse, err
+	return itemResponse, true
 }
 
-func getDomainInfo(ctx *fasthttp.RequestCtx) (Domain, error) {
+func getDomainInfo(ctx *fasthttp.RequestCtx) (Domain, bool) {
 	var domainResponse Domain
 
 	host := ctx.RemoteIP().String()
@@ -217,48 +233,51 @@ func getDomainInfo(ctx *fasthttp.RequestCtx) (Domain, error) {
 	domainResult, err := whois.QueryHost(domain)
 	if len(domainResult.Output["Domain Name"]) == 0 || err != nil {
 		fmt.Println("Error in whois lookup :", err)
-	} else {
-		domainAddress := domainResult.Output["Domain Name"][0]
-		domainServers, err := getServers(domain)
-		if err != nil {
-			fmt.Println("error getting servers ", err)
-		}
-
-		domainTitle, domainLogo, err := getTitleLogo(domain)
-		if err != nil {
-			fmt.Println("error getting title and logo ", err)
-		}
-
-		var domainIsDown bool
-		if domainResult.Output["status"][0] == "ACTIVE" {
-			domainIsDown = false
-		} else {
-			domainIsDown = true
-		}
-
-		domainResponse = Domain{Address: domainAddress, IsDown: domainIsDown, Logo: domainLogo,
-			Servers: domainServers, Title: domainTitle}
-
-		exists, err := existsDomainDB(domainAddress)
-
-		if err != nil {
-			fmt.Println("error querying domain in DB", err)
-		}
-		if exists == true {
-			updateDomainServersDB(&domainResponse)
-		} else if exists == false {
-			insertDomainServersDB(&domainResponse)
-		}
-
-		existsOrigin, errOrigin := existsOriginDB(host)
-		if errOrigin != nil {
-			fmt.Println("error querying origin in DB", errOrigin)
-		}
-		insertConnectionDB(existsOrigin, host, "Some metadata", domainAddress)
-
+		return domainResponse, false
+	}
+	domainAddress := domainResult.Output["Domain Name"][0]
+	domainServers, err := getServers(domain)
+	if err != nil {
+		fmt.Println("error getting servers ", err)
+		return domainResponse, false
 	}
 
-	return domainResponse, err
+	domainTitle, domainLogo, err := getTitleLogo(domain)
+	if err != nil {
+		fmt.Println("error getting title and logo ", err)
+		return domainResponse, false
+	}
+
+	var domainIsDown bool
+	if domainResult.Output["status"][0] == "ACTIVE" {
+		domainIsDown = false
+	} else {
+		domainIsDown = true
+	}
+
+	domainResponse = Domain{Address: domainAddress, IsDown: domainIsDown, Logo: domainLogo,
+		Servers: domainServers, Title: domainTitle}
+
+	exists, err := existsDomainDB(domainAddress)
+
+	if err != nil {
+		fmt.Println("error querying domain in DB", err)
+		return domainResponse, false
+	}
+	if exists == true {
+		updateDomainServersDB(&domainResponse)
+	} else if exists == false {
+		insertDomainServersDB(&domainResponse)
+	}
+
+	existsOrigin, errOrigin := existsOriginDB(host)
+	if errOrigin != nil {
+		fmt.Println("error querying origin in DB", errOrigin)
+		return domainResponse, false
+	}
+	insertConnectionDB(existsOrigin, host, "Some metadata", domainAddress)
+
+	return domainResponse, true
 }
 
 func existsDomainDB(domainAddress string) (bool, error) {
