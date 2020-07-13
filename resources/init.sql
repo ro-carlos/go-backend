@@ -42,12 +42,3 @@ LastUpdate TIMESTAMPTZ
 ALTER TABLE DB.Server ADD CONSTRAINT domain_fk FOREIGN KEY (DomainAddress) REFERENCES DB.Domain (Address) ON DELETE CASCADE;
 ALTER TABLE DB.Connection ADD CONSTRAINT connection_fk1 FOREIGN KEY (OriginIP) REFERENCES DB.Origin(Address) ON DELETE CASCADE;
 ALTER TABLE DB.Connection ADD CONSTRAINT connection_fk2 FOREIGN KEY (DomainAddress) REFERENCES DB.Domain (Address) ON DELETE CASCADE;
-
-
-INSERT INTO DB.Domain (Address, IsDown, Logo, SSLGrade, Title, LastUpdate) 
-VALUES ('google.com', false, 'Any Logo', 'B', 'Google Inc.', '2020-07-08 00:00:00-05:00');
-
-INSERT INTO DB.Server (Address, SSLGrade, Country, Owner, DomainAddress, LastUpdate) 
-        VALUES ('172.217.0.46', 'B', 'US', 'Google LLC', 'google.com', '2020-07-08 00:00:00-05:00');
-INSERT INTO DB.Server (Address, SSLGrade, Country, Owner, DomainAddress, LastUpdate) 
-        VALUES ('2607:f8b0:4005:802:0:0:0:200e', 'B', 'US', 'Google LLC', 'google.com', '2020-07-08 00:00:00-05:00');
