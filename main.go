@@ -481,8 +481,8 @@ func insertDomainServersDB(domain *Domain) {
 		fmt.Println("error connecting to DB", err)
 	}
 
-	domain.PreviousSSLGrade = ""
 	domain.SSLGrade = calculateMinSSLGrade(domain.Servers)
+	domain.PreviousSSLGrade = domain.SSLGrade
 	domain.ServersChanged = false
 
 	_, errInsDom := db.Exec(
